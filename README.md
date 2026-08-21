@@ -1,104 +1,104 @@
+> 🌐 **English** | [中文](README_CN.md)
+
 # Pressure-Center-Calculator
 
 Compute the resultant **force** and **pressure center** (center of pressure) of any pressure-loaded surface from scattered surface-pressure point clouds (CFD or wind-tunnel / test data).
 
-从表面压力点云，计算结构表面压力分布产生的**合力 F、力矩 M 与压力中心**。适用于任何“表面承受分布压力、需求合力与压力中心”的结构。
+## Applicability
 
-## 适用范围
+Any 2-D surface structure carrying a distributed pressure load, for example:
 
-任意表面承受分布压力的二维面结构，例如：
+- **Turbomachinery**: rotor/stator blades, compressor/turbine blades, fans, propellers, rotors, wind/tidal/hydro turbine blades, pump impellers, guide vanes;
+- **Aerospace**: wings (upper/lower surfaces), tail fins/stabilizers, control surfaces, fuselage sections, winglets, UAV surfaces, rocket/missile bodies and fins;
+- **Automotive**: rear/front wings, splitters/diffusers, body sections;
+- **Marine/offshore**: hull sections, rudders/fins, hydrofoils, sails, offshore-platform pressure panels;
+- **Civil / wind engineering**: building facades/cladding, roofs (uplift center), canopies/bridges/signboards/solar panels;
+- Other: hydrostatic/dynamic pressure faces (gates, dam faces, tank walls), internal-flow components, etc.
 
-- **叶轮机械**：转子/静子叶片、压气机/涡轮叶片、风扇、螺旋桨、旋翼、风力机/水轮机叶片、泵叶轮、导叶；
-- **航空航天**：机翼（上下表面）、尾翼/安定面、操纵面、机身段、翼梢小翼、无人机翼面、火箭/导弹本体与尾翼；
-- **汽车**：尾翼/前翼/分流器/扩散器、车身段；
-- **船舶/海工**：船体段、舵/鳍、水翼、帆、海上平台压载面；
-- **土木/风工程**：建筑外墙/幕墙、屋面（抗拔中心）、雨棚/桥梁/广告牌/光伏板；
-- 其他：静水/动水压力面（闸门、坝面、罐壁）、内流件等。
+Input: 4 columns per line `x y z p` (x,y,z in [m], p in [Pa]). The point cloud is the surface shape — no extra geometry needed.
 
-输入：每行 4 列 `x y z p`（x,y,z 单位 m，p 单位 Pa）。点云即面形，无需额外几何。
-
-## 依赖
+## Requirements
 
 - Python 3.8+
-- numpy、scipy（版本见 `requirements.txt`）
+- numpy, scipy (versions in `requirements.txt`)
 
-安装：`python -m pip install -r requirements.txt`
+Install: `python -m pip install -r requirements.txt`
 
-## 用法
+## Usage
 
 ```
 python pressure_center.py <ps.dat> [ss.dat] [--inside-point X Y Z] [--cstype aero|mech] [--pref P]
 ```
 
-- `ps.dat`：一个表面的压力点云（`x y z p`）。双面结构（叶片、机翼上下、尾翼两面）取其中一面。
-- `ss.dat`（可选）：对面。**双面结构**用它；**单面**（机翼单蒙皮、建筑墙、帆）省略。
-- `--inside-point X Y Z`：结构内部一点（气动系坐标 m），法向背离该点 → 稳健确定湿润侧。**单面必填**；双面（两文件）无需（自动按厚度方向取向）。
-- `--cstype aero|mech`：输出坐标系，默认 `mech`。两者**不止单位不同，坐标轴也不同**（见下）。
-- `--pref P`：减参考压 P [Pa] 换算表压；默认绝对压力。
+- `ps.dat`: pressure point cloud of one surface (`x y z p`). For a two-sided body (blade, wing upper/lower, tail surfaces) this is one side.
+- `ss.dat` (optional): the opposing surface. Use it for **two-sided** bodies; omit for a **single surface** (single wing skin, wall, sail) or a closed body.
+- `--inside-point X Y Z`: a point inside the body (aero-frame coordinates, m); normals point away from it → robustly fixes the wetted side. **Required for single surfaces**; not needed for two-sided (two-file) bodies (oriented automatically via the thickness direction).
+- `--cstype aero|mech`: output coordinate system, default `mech`. The two differ in **axes, not only units** (see below).
+- `--pref P`: subtract reference pressure P [Pa] to work in gauge; default is absolute pressure.
 
-输出：合力 `F=(Fx,Fy,Fz)`、`|F|`、压力中心点（合力作用线上、距本体质心最近）、作用线方向、剩余力偶。
+Output: resultant force `F=(Fx,Fy,Fz)`, `|F|`, pressure-center point (on the line of action, closest to the body centroid), line-of-action direction, residual couple.
 
-## 坐标系
+## Coordinate systems
 
-内部计算在**气动系 aero**（m、N、N·m）进行。`--cstype` 切换**显示**坐标系。**注意：mech 与 aero 不只是单位不同（mm vs m），坐标轴也不同**：
+Internal computation is in the **aero** frame (m, N, N·m). `--cstype` switches the **display** frame. **Note: `mech` vs `aero` differ in axes, not only in units (mm vs m):**
 
 ```
 aero_x =  mech_z / 1000
-aero_y = -mech_y / 1000        # y 取反
-aero_z =  mech_x / 1000        # x 与 z 互换
-即  aero = R · mech，  R = [[0,0,1],[0,-1,0],[1,0,0]]，位置再 /1000 (mm→m)
+aero_y = -mech_y / 1000        # y negated
+aero_z =  mech_x / 1000        # x and z swapped
+i.e. aero = R · mech,  R = [[0,0,1],[0,-1,0],[1,0,0]], then positions /1000 (mm->m)
 ```
 
-力与力矩只做旋转 `R`（单位 N、N·m 不变）。`--cstype` 仅影响显示，不改变计算。
+Force and moment are only rotated by `R` (units N, N·m unchanged). `--cstype` affects display only, not the computation.
 
-## 验算（可选）
+## Verification (optional)
 
-用某参考点处已知的外部合力与弯矩，验算程序结果。结果写入同目录 `verify_report.md`。
+Verify the program against a known external load (force and moment at a reference point). The report is written to `verify_report.md` in the working directory.
 
-1. 把 `external_load.sample.txt` 复制为 `external_load.txt`，填入参考点、力、力矩（行格式，首行指定坐标系）：
+1. Copy `external_load.sample.txt` to `external_load.txt` and fill in the reference point, force, and moment (line format, first line sets the coordinate system):
 
 ```
-<cs_type>       # 坐标系类型: aero(位置 m) 或 mech(位置 mm)
-<x> <y> <z>     # 参考点 r_ref（mech=mm, aero=m）
+<cs_type>       # coordinate system: aero (positions m) or mech (positions mm)
+<x> <y> <z>     # reference point r_ref (mech=mm, aero=m)
 <Fx> <Fy> <Fz>  # [N]
 <mx> <my> <mz>  # [N·m]
 ```
 
-9 个数值一行一个；可带 `#` 注释。位置单位随 `cs_type`：`mech` 为 mm，`aero` 为 m；力/力矩恒为 N、N·m。单面/闭合体验算时加 `--inside-point`（同上）。
+One value per line, 9 values total; `#` comments allowed. Position units follow `cs_type` (`mech`=mm, `aero`=m); force/moment are always N, N·m. For single-surface / closed-body verification add `--inside-point` (as above).
 
-2. 运行：
+2. Run:
 
 ```
 python verify.py --ps ps.dat [--ss ss.dat] [--inside-point X Y Z] --ext external_load.txt --tol 1e-3
 ```
 
-`--tol` 为相对容差（`1e-3` = 0.1%）。报告含四项相对误差（合力、力矩、压力中心、剩余力偶，以**百分比**显示）与逐项 PASS/FAIL。误差归一尺度来自 `.dat` 文件本身（特征长度 = 点云最大尺寸；力矩尺度 = |F|×特征长度），不依赖任何预设载荷。外部 `mx,my,mz` 须为右手系 `M=∮(r-r_ref)×dF`。
+`--tol` is the relative tolerance (`1e-3` = 0.1%). The report lists four relative errors (force, moment, pressure center, residual couple, shown as **percentages**) with per-item PASS/FAIL. Normalization scales come from the `.dat` files themselves (characteristic length = max point-cloud extent; moment scale = |F| × characteristic length) — no preset load. External `mx,my,mz` must use the right-hand rule `M=∮(r-r_ref)×dF`.
 
-## 输出含义
+## Output meaning
 
-- **压力中心**：合力作用线上距本体质心最近的点（作用线上的点都满足“垂直于力的力矩为零”）。
-- **剩余力偶**：沿合力方向、不可通过选点消除的纯扭矩（三维分布固有）。若其相对 `|F|×结构尺寸` 很小，载荷可近似为一个单纯力；否则结构分析时需计入该扭矩。
+- **Pressure center**: the point on the line of action closest to the body centroid (every point on the line of action has zero moment perpendicular to the force).
+- **Residual couple**: a pure torque along the force axis that cannot be removed by choosing the point (inherent to a 3-D distribution). If it is small relative to `|F|×structure size`, the load is essentially a single force; otherwise include this torque in structural analysis.
 
-## 文件
+## Files
 
-| 文件 | 用途 |
+| File | Purpose |
 |---|---|
-| `pressure_center.py` | 主程序（读取、三角化、积分、压力中心、命令行） |
-| `verify.py` | 用外部载荷验算，输出 `verify_report.md` |
-| `external_load.sample.txt` | 外部载荷模板（复制为 `external_load.txt` 并填入实际值） |
-| `requirements.txt` | 依赖 |
-| `verify_report.md` | `verify.py` 生成的验算报告（运行后出现） |
+| `pressure_center.py` | main program (load, triangulate, integrate, pressure center, CLI) |
+| `verify.py` | verify against an external load, outputs `verify_report.md` |
+| `external_load.sample.txt` | external-load template (copy to `external_load.txt` and fill in) |
+| `requirements.txt` | dependencies |
+| `verify_report.md` | report generated by `verify.py` (appears after running) |
 
-> 输入数据文件（`*.dat`）需自行提供，不在仓库中（已 gitignore，避免泄漏真实数据）。
+> Input data files (`*.dat`) must be supplied by the user and are not in the repo (gitignored to avoid leaking real data).
 
-## 假设 / 局限
+## Assumptions / limitations
 
-- 每个面片是其最佳拟合平面上的“图”（不折叠）；适用常规翼面/墙面等。完全闭合的壳（如整段机身）需拆成若干图状面片分别给。
-- 双面结构（两文件）自动按厚度方向取向；单面/闭合体用 `--inside-point` 取向。
-- 压力默认按绝对压力处理；薄结构下常数项在两对面间近似抵消，合力基本正确，压力中心可能略受影响。需表压基准时用 `--pref`。
+- Each patch is a graph over its best-fit plane (no folding); suits typical wing/wall surfaces. A fully closed shell (e.g. a full fuselage) must be split into several graph-like patches.
+- Two-sided bodies (two files) are oriented automatically via the thickness direction; single/closed surfaces use `--inside-point`.
+- Pressure is treated as absolute by default; for a thin body the constant part nearly cancels between opposing sides, so the force is essentially correct, though the pressure center may be slightly affected. Use `--pref` for a gauge basis.
 
 ## License
 
-**CC BY-NC 4.0**（Creative Commons Attribution-NonCommercial 4.0 International）— 非商用：可使用、分享、改编，但**仅供非商业用途**，且须署名并注明改动；商业用途需另行获得许可。见 [LICENSE](LICENSE) 与 https://creativecommons.org/licenses/by-nc/4.0/。
+Unless otherwise stated, the content of this repository and related materials are licensed under [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) (Attribution-NonCommercial-ShareAlike 4.0: non-commercial use, with attribution and ShareAlike). See [LICENSE](LICENSE).
 
-> 开发与测试说明见 `README_DEV.md`。
+> Development/testing notes: see `README_DEV.md`.
