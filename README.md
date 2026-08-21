@@ -82,6 +82,6 @@ python verify.py --ps srv_ps.dat --ss srv_ss.dat --ext external_load.txt --tol 0
 
 ## License
 
-MIT — 见 [LICENSE](LICENSE)。
+**CC BY-NC 4.0**（Creative Commons Attribution-NonCommercial 4.0 International）— 非商用：可使用、分享、改编，但**仅供非商业用途**，且须署名并注明改动；商业用途需另行获得许可。见 [LICENSE](LICENSE) 与 https://creativecommons.org/licenses/by-nc/4.0/。
 
 > 开发与测试说明见 `README_DEV.md`。
