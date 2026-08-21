@@ -101,4 +101,4 @@ python verify.py --ps ps.dat [--ss ss.dat] [--inside-point X Y Z] --ext external
 
 除特别声明外，本仓库内容及相关素材均采用 [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) 协议（署名-非商用-相同方式共享）。详见 [LICENSE](LICENSE)。
 
-> 开发与测试说明见 `README_DEV.md`。
+> 开发与测试说明见 [开发说明](README_DEV.md)。
