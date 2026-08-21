@@ -6,7 +6,7 @@ Compute the resultant **force** and **pressure center** (center of pressure) of 
 
 ## Applicability
 
-Any 2-D surface structure carrying a distributed pressure load, for example:
+Any 3-D curved surface carrying a distributed pressure load, for example:
 
 - **Turbomachinery**: rotor/stator blades, compressor/turbine blades, fans, propellers, rotors, wind/tidal/hydro turbine blades, pump impellers, guide vanes;
 - **Aerospace**: wings (upper/lower surfaces), tail fins/stabilizers, control surfaces, fuselage sections, winglets, UAV surfaces, rocket/missile bodies and fins;
