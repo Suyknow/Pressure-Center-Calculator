@@ -1,0 +1,6 @@
+# 目标平台：Windows 7 + Python 3.8.10（Windows 7 能用的最后一个 Python）。
+# 注意：NumPy/SciPy 越新的版本会放弃 Windows 7 运行时支持，故必须钉版本。
+# 以下版本提供 cp38 Windows 轮子，且可在 Windows 7 上运行（需装好 UCRT，
+# 即更新 KB2999226）。
+numpy==1.22.4
+scipy==1.8.1

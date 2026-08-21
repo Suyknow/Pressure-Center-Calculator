@@ -1,0 +1,19 @@
+# external_load.txt -- external load at a reference point
+#
+# Line 1  : cs_type   = aero (positions in m) or mech (positions in mm)
+# Line 2-4: x, y, z   of the reference point r_ref (unit follows cs_type)
+# Line 5-7: Fx, Fy, Fz   [N]
+# Line 8-10: mx, my, mz  [N.m]  (right-hand rule: M = integral (r-r_ref) x dF)
+#
+# Lines starting with '#' and any text after '#' on a line are ignored.
+# Replace the placeholder zeros below with your actual values.
+mech  # cs_type aero|mech
+0.0   # x
+0.0   # y
+0.0   # z
+0.0   # Fx [N]
+0.0   # Fy [N]
+0.0   # Fz [N]
+0.0   # mx [N.m]
+0.0   # my [N.m]
+0.0   # mz [N.m]

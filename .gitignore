@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.vscode/
+.idea/
+
+# Generated report (verify.py output)
+verify_report.md
+
+# User data — never commit real blade data / filled external load
+*.dat
+external_load.txt
