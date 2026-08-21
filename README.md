@@ -101,4 +101,4 @@ python verify.py --ps ps.dat [--ss ss.dat] [--inside-point X Y Z] --ext external
 
 Unless otherwise stated, the content of this repository and related materials are licensed under [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) (Attribution-NonCommercial-ShareAlike 4.0: non-commercial use, with attribution and ShareAlike). See [LICENSE](LICENSE).
 
-> Development/testing notes: see `README_DEV.md`.
+> Development/testing notes: see [README_DEV](README_DEV.md).
