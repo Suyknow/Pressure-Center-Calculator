@@ -49,18 +49,27 @@ from pressure_center import (mech_to_aero_pos, mech_to_aero_vec,
 
 
 # --------------------------------------------------------------------------- #
-def analyze(ps_path, ss_path, reference_pressure=None):
+def analyze(ps_path, ss_path=None, reference_pressure=None, inside_point=None):
     """复用 pressure_center 的内部函数，拿到 F、关于 bc 的力矩 M_bc 等。"""
     ps_pts, ps_p = pc.load_surface(ps_path)
-    ss_pts, ss_p = pc.load_surface(ss_path)
+    if ss_path is not None:
+        ss_pts, ss_p = pc.load_surface(ss_path)
+    else:
+        ss_pts = np.zeros((0, 3))
+        ss_p = np.zeros((0,))
     if reference_pressure is not None:
         ps_p = ps_p - reference_pressure
-        ss_p = ss_p - reference_pressure
-    all_pts = np.vstack([ps_pts, ss_pts])
+        if len(ss_p):
+            ss_p = ss_p - reference_pressure
+    if inside_point is not None:
+        inside_point = np.asarray(inside_point, dtype=float)
+    single = len(ss_pts) < 3
+    all_pts = ps_pts if single else np.vstack([ps_pts, ss_pts])
     bc = all_pts.mean(axis=0)
-    F, M_bc, area, n_tri = pc.integrate_patches(ps_pts, ps_p, ss_pts, ss_p, bc)
+    F, M_bc, area, n_tri = pc.integrate_patches(
+        ps_pts, ps_p, ss_pts, ss_p, bc, inside_point=inside_point)
     res = pc.pressure_center(F, M_bc, bc)
-    # 特征长度：点云各轴跨度的最大值（叶片最大尺寸），用于把绝对误差归一为
+    # 特征长度：点云各轴跨度的最大值（结构最大尺寸），用于把绝对误差归一为
     # 相对误差——这样阈值与坐标系/单位无关，也不依赖任何预设载荷。
     ptp = all_pts.max(axis=0) - all_pts.min(axis=0)
     L_char = float(np.max(ptp)) if ptp.size else 1.0
@@ -372,10 +381,14 @@ def selftest():
 
 def main(argv=None):
     p = argparse.ArgumentParser(description="验算 pressure_center.py 结果")
-    p.add_argument("--ps", help="压力面数据文件")
-    p.add_argument("--ss", help="吸力面数据文件")
+    p.add_argument("--ps", help="surface data file (x y z p)")
+    p.add_argument("--ss", default=None, help="optional second surface file "
+                    "(omit for single surface / closed body)")
     p.add_argument("--ext", help="外部载荷文件（行格式：cs_type + xyz(3) + F(3) + M(3)）")
     p.add_argument("--pref", type=float, default=None, help="参考压力扣除 [Pa]")
+    p.add_argument("--inside-point", dest="inside_point", nargs=3, type=float,
+                   default=None, metavar=("X", "Y", "Z"),
+                   help="结构内部一点[m]（单面/闭合体时用于法向取向；气动系坐标）")
     p.add_argument("--tol", type=float, default=1e-3,
                    help="相对容差（1e-3 = 0.1%%，默认 1e-3）")
     p.add_argument("--out", default="verify_report.md",
@@ -387,9 +400,10 @@ def main(argv=None):
         ok = selftest()
         return 0 if ok else 1
 
-    if not (args.ps and args.ss and args.ext):
-        p.error("需要 --ps --ss --ext，或使用 --selftest")
-    prog = analyze(args.ps, args.ss, reference_pressure=args.pref)
+    if not (args.ps and args.ext):
+        p.error("需要 --ps --ext（--ss 可选），或使用 --selftest")
+    prog = analyze(args.ps, args.ss, reference_pressure=args.pref,
+                   inside_point=args.inside_point)
     cs_type, r_ref, F_k, M_k = load_external(args.ext)
     ok = verify(prog, cs_type, r_ref, F_k, M_k, tol=args.tol,
                 out_path=args.out, verbose=True)

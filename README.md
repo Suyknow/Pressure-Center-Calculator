@@ -1,10 +1,21 @@
 # Pressure-Center-Calculator
 
-**静子叶片压力中心计算** — Compute the resultant aerodynamic force and the pressure center (center of pressure) of a stator blade from two surface-pressure point clouds (pressure side / suction side).
+Compute the resultant **force** and **pressure center** (center of pressure) of any pressure-loaded surface from scattered surface-pressure point clouds (CFD or wind-tunnel / test data).
 
-从两个表面压力点云文件（压力面 `ps`、吸力面 `ss`）计算静子叶片的气动合力与压力中心。
+从表面压力点云，计算结构表面压力分布产生的**合力 F、力矩 M 与压力中心**。适用于任何“表面承受分布压力、需求合力与压力中心”的结构。
 
-输入文件每行 4 列 `x y z p`（x,y,z 单位 m，p 单位 Pa）。
+## 适用范围
+
+任意表面承受分布压力的二维面结构，例如：
+
+- **叶轮机械**：转子/静子叶片、压气机/涡轮叶片、风扇、螺旋桨、旋翼、风力机/水轮机叶片、泵叶轮、导叶；
+- **航空航天**：机翼（上下表面）、尾翼/安定面、操纵面、机身段、翼梢小翼、无人机翼面、火箭/导弹本体与尾翼；
+- **汽车**：尾翼/前翼/分流器/扩散器、车身段；
+- **船舶/海工**：船体段、舵/鳍、水翼、帆、海上平台压载面；
+- **土木/风工程**：建筑外墙/幕墙、屋面（抗拔中心）、雨棚/桥梁/广告牌/光伏板；
+- 其他：静水/动水压力面（闸门、坝面、罐壁）、内流件等。
+
+输入：每行 4 列 `x y z p`（x,y,z 单位 m，p 单位 Pa）。点云即面形，无需额外几何。
 
 ## 依赖
 
@@ -13,54 +24,60 @@
 
 安装：`python -m pip install -r requirements.txt`
 
-## 计算
+## 用法
 
 ```
-python pressure_center.py srv_ps.dat srv_ss.dat
+python pressure_center.py <ps.dat> [ss.dat] [--inside-point X Y Z] [--cstype aero|mech] [--pref P]
 ```
 
-选项：
+- `ps.dat`：一个表面的压力点云（`x y z p`）。双面结构（叶片、机翼上下、尾翼两面）取其中一面。
+- `ss.dat`（可选）：对面。**双面结构**用它；**单面**（机翼单蒙皮、建筑墙、帆）省略。
+- `--inside-point X Y Z`：结构内部一点（气动系坐标 m），法向背离该点 → 稳健确定湿润侧。**单面必填**；双面（两文件）无需（自动按厚度方向取向）。
+- `--cstype aero|mech`：输出坐标系，默认 `mech`。两者**不止单位不同，坐标轴也不同**（见下）。
+- `--pref P`：减参考压 P [Pa] 换算表压；默认绝对压力。
 
-- `--cstype aero|mech`：输出坐标系。`mech`（结构系，位置 mm，**默认**）或 `aero`（气动系，m）。仅影响显示，内部始终在气动系(m)计算。
-- `--pref P`：减去参考压 P [Pa]（换算到表压基准）。默认按绝对压力处理，不减。
+输出：合力 `F=(Fx,Fy,Fz)`、`|F|`、压力中心点（合力作用线上、距本体质心最近）、作用线方向、剩余力偶。
 
-输出：合力 `F=(Fx,Fy,Fz)`、`|F|`、压力中心点（位于合力作用线上、距本体质心最近）、作用线方向、剩余力偶。
+## 坐标系
+
+内部计算在**气动系 aero**（m、N、N·m）进行。`--cstype` 切换**显示**坐标系。**注意：mech 与 aero 不只是单位不同（mm vs m），坐标轴也不同**：
+
+```
+aero_x =  mech_z / 1000
+aero_y = -mech_y / 1000        # y 取反
+aero_z =  mech_x / 1000        # x 与 z 互换
+即  aero = R · mech，  R = [[0,0,1],[0,-1,0],[1,0,0]]，位置再 /1000 (mm→m)
+```
+
+力与力矩只做旋转 `R`（单位 N、N·m 不变）。`--cstype` 仅影响显示，不改变计算。
 
 ## 验算（可选）
 
-用某参考点处已知的外部合力与弯矩，验算程序结果。结果写入同目录 `verify_report.md`（终端只打印简短摘要）。
+用某参考点处已知的外部合力与弯矩，验算程序结果。结果写入同目录 `verify_report.md`。
 
-1. 把随附模板 `external_load.sample.txt` 复制为 `external_load.txt`，填入参考点、力、力矩（行格式，首行指定坐标系）：
+1. 把 `external_load.sample.txt` 复制为 `external_load.txt`，填入参考点、力、力矩（行格式，首行指定坐标系）：
 
 ```
 <cs_type>       # 坐标系类型: aero(位置 m) 或 mech(位置 mm)
-<x>             # 参考点 r_ref 的 x
-<y>             # 参考点 r_ref 的 y
-<z>             # 参考点 r_ref 的 z
-<Fx>            # [N]
-<Fy>            # [N]
-<Fz>            # [N]
-<mx>            # [N·m]
-<my>            # [N·m]
-<mz>            # [N·m]
+<x> <y> <z>     # 参考点 r_ref（mech=mm, aero=m）
+<Fx> <Fy> <Fz>  # [N]
+<mx> <my> <mz>  # [N·m]
 ```
 
-9 个数值一行一个；可带 `#` 注释。位置单位随 `cs_type`：`mech` 为 mm，`aero` 为 m；力/力矩恒为 N、N·m。
+9 个数值一行一个；可带 `#` 注释。位置单位随 `cs_type`：`mech` 为 mm，`aero` 为 m；力/力矩恒为 N、N·m。单面/闭合体验算时加 `--inside-point`（同上）。
 
 2. 运行：
 
 ```
-python verify.py --ps srv_ps.dat --ss srv_ss.dat --ext external_load.txt --tol 0.05
+python verify.py --ps ps.dat [--ss ss.dat] [--inside-point X Y Z] --ext external_load.txt --tol 1e-3
 ```
 
-`--tol` 为相对容差（`0.05` = 5%）。报告含四项相对误差（合力、力矩、压力中心、剩余力偶，以**百分比**显示）与逐项 PASS/FAIL。
-
-坐标系关系：`aero = (mech_z, -mech_y, mech_x)/1000`（x、z 互换，y 取反，mm→m）。外部 `mx,my,mz` 须为右手系 `M=∮(r-r_ref)×dF`。
+`--tol` 为相对容差（`1e-3` = 0.1%）。报告含四项相对误差（合力、力矩、压力中心、剩余力偶，以**百分比**显示）与逐项 PASS/FAIL。误差归一尺度来自 `.dat` 文件本身（特征长度 = 点云最大尺寸；力矩尺度 = |F|×特征长度），不依赖任何预设载荷。外部 `mx,my,mz` 须为右手系 `M=∮(r-r_ref)×dF`。
 
 ## 输出含义
 
 - **压力中心**：合力作用线上距本体质心最近的点（作用线上的点都满足“垂直于力的力矩为零”）。
-- **剩余力偶**：沿合力方向、不可通过选点消除的纯扭矩（三维分布固有）。若其相对 `|F|×叶片尺寸` 很小，载荷可近似为一个单纯力；否则结构分析时需计入该扭矩。
+- **剩余力偶**：沿合力方向、不可通过选点消除的纯扭矩（三维分布固有）。若其相对 `|F|×结构尺寸` 很小，载荷可近似为一个单纯力；否则结构分析时需计入该扭矩。
 
 ## 文件
 
@@ -72,13 +89,13 @@ python verify.py --ps srv_ps.dat --ss srv_ss.dat --ext external_load.txt --tol 0
 | `requirements.txt` | 依赖 |
 | `verify_report.md` | `verify.py` 生成的验算报告（运行后出现） |
 
-> 输入数据文件（`*.dat`，如 `srv_ps.dat`/`srv_ss.dat`）需自行提供，不在仓库中（已 gitignore，避免泄漏真实叶片数据）。
+> 输入数据文件（`*.dat`）需自行提供，不在仓库中（已 gitignore，避免泄漏真实数据）。
 
 ## 假设 / 局限
 
-- 每个面片是其最佳拟合平面上的“图”（不折叠）；适用常规叶片吸力面/压力面。
-- 两面片需分开（有限厚度）以定义外法向。
-- 压力默认按绝对压力处理；薄叶片下常数项在 ps/ss 间近似抵消，合力基本正确，压力中心可能略受影响。需表压基准时用 `--pref`。
+- 每个面片是其最佳拟合平面上的“图”（不折叠）；适用常规翼面/墙面等。完全闭合的壳（如整段机身）需拆成若干图状面片分别给。
+- 双面结构（两文件）自动按厚度方向取向；单面/闭合体用 `--inside-point` 取向。
+- 压力默认按绝对压力处理；薄结构下常数项在两对面间近似抵消，合力基本正确，压力中心可能略受影响。需表压基准时用 `--pref`。
 
 ## License
 

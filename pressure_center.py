@@ -246,30 +246,40 @@ def triangulate_patch(pts, edge_factor=4.0, circum_factor=2.5):
 # --------------------------------------------------------------------------- #
 #  Force / moment integration over both patches
 # --------------------------------------------------------------------------- #
-def integrate_patches(ps_pts, ps_p, ss_pts, ss_p, body_centroid):
-    """Integrate pressure force over ps and ss patches.
+def integrate_patches(ps_pts, ps_p, ss_pts, ss_p, body_centroid,
+                      inside_point=None):
+    """Integrate pressure force over the given surface patches.
 
     Returns (F, M_about_body_centroid, total_area, n_triangles).
+
+    Outward-normal orientation (how the wetted side is determined):
+      * if ``inside_point`` is given (a point inside / on the non-wetted side
+        of the body), every triangle normal is oriented to point *away* from
+        it. This is robust for ANY configuration -- single open surface
+        (wall, sail, single skin) and closed bodies (fuselage, hull, whole
+        blade given as one cloud) -- as long as the surface is star-shaped
+        w.r.t. that point.
+      * otherwise, for two separated patches (a two-sided body such as a
+        blade or wing), each patch is oriented *away from the other patch*
+        (uses the thickness direction, robust to camber).
+      * fallback (coincident patches / single surface, no inside point):
+        per-triangle body-centroid heuristic -- unreliable for strongly
+        curved single surfaces (provide --inside-point then).
     """
     F = np.zeros(3)
     M = np.zeros(3)
     total_area = 0.0
     n_tri = 0
 
-    # Curvature-robust outward orientation: each patch's outward normal
-    # points *away from the other patch*. This uses the thickness direction
-    # (robust to camber) rather than the body centroid (which on a cambered
-    # blade can sit above pressure-side triangles near the camber peak and
-    # flip their normals inward). Falls back to the body-centroid heuristic
-    # when the two patches are coincident (no thickness information).
-    c_ps = ps_pts.mean(axis=0)
-    c_ss = ss_pts.mean(axis=0)
-    sep = c_ss - c_ps
-    sep_norm = np.linalg.norm(sep)
-    if sep_norm > 1e-12:
-        outward_dir = {"ps": -sep, "ss": sep}     # away from the other patch
-    else:
-        outward_dir = None                         # fall back per-triangle
+    # Two-sided pairwise orientation (only when both patches are present and
+    # separated). Not used when an inside_point is given.
+    outward_dir = None
+    if inside_point is None and len(ps_pts) >= 1 and len(ss_pts) >= 1:
+        c_ps = ps_pts.mean(axis=0)
+        c_ss = ss_pts.mean(axis=0)
+        sep = c_ss - c_ps
+        if np.linalg.norm(sep) > 1e-12:
+            outward_dir = {"ps": -sep, "ss": sep}     # away from the other patch
 
     for label, pts, p in (("ps", ps_pts, ps_p), ("ss", ss_pts, ss_p)):
         if len(pts) < 3:
@@ -305,7 +315,13 @@ def integrate_patches(ps_pts, ps_p, ss_pts, ss_p, body_centroid):
         w = area / 3.0                          # weight per midpoint (M,)
 
         # Orient normals outward.
-        if outward_dir is not None:
+        if inside_point is not None:
+            # robust for any surface config: normal points away from the
+            # interior point (the body's non-wetted side).
+            r_c = (v0 + v1 + v2) / 3.0
+            flip = np.sum(n * (r_c - inside_point), axis=1) < 0
+            n[flip] = -n[flip]
+        elif outward_dir is not None:
             d_out = outward_dir[label]
             # make all triangles consistent with the patch-mean normal first
             # (fixes any stray triangles from Delaunay degeneracies; safe for
@@ -386,26 +402,41 @@ def _fmt(v):
     return "  ".join("% .6e" % x for x in v)
 
 
-def run(ps_path, ss_path, reference_pressure=None, cs_type="mech",
-        verbose=True):
+def run(ps_path, ss_path=None, reference_pressure=None, cs_type="mech",
+        inside_point=None, verbose=True):
     ps_pts, ps_p = load_surface(ps_path)
-    ss_pts, ss_p = load_surface(ss_path)
+    if ss_path is not None:
+        ss_pts, ss_p = load_surface(ss_path)
+    else:
+        ss_pts = np.zeros((0, 3))
+        ss_p = np.zeros((0,))
     if reference_pressure is not None:
         ps_p = ps_p - reference_pressure
-        ss_p = ss_p - reference_pressure
+        if len(ss_p):
+            ss_p = ss_p - reference_pressure
 
-    all_pts = np.vstack([ps_pts, ss_pts])
+    if inside_point is not None:
+        inside_point = np.asarray(inside_point, dtype=float)
+    single_surface = len(ss_pts) < 3
+
+    all_pts = ps_pts if single_surface else np.vstack([ps_pts, ss_pts])
     body_centroid = all_pts.mean(axis=0)
 
-    for label, pts in (("ps", ps_pts), ("ss", ss_pts)):
-        if len(pts) < 3:
-            raise ValueError(
-                "Surface '%s' has only %d point(s); need >=3 non-collinear "
-                "points. (The shipped sample has 1 row just to show the "
-                "format; real files have ~10k rows.)" % (label, len(pts)))
+    if len(ps_pts) < 3:
+        raise ValueError(
+            "Surface 'ps' has only %d point(s); need >=3 non-collinear "
+            "points." % len(ps_pts))
+    if single_surface and inside_point is None:
+        sys.stderr.write(
+            "Warning: single-surface input (no ss) without --inside-point: "
+            "outward-normal orientation uses a fragile body-centroid rule "
+            "and may be wrong for curved surfaces. Provide --inside-point "
+            "(a point on the body's interior / non-wetted side) for a "
+            "robust result.\n")
 
     F, M, area, n_tri = integrate_patches(ps_pts, ps_p, ss_pts, ss_p,
-                                          body_centroid)
+                                          body_centroid,
+                                          inside_point=inside_point)
     res = pressure_center(F, M, body_centroid)
 
     if verbose:
@@ -414,10 +445,14 @@ def run(ps_path, ss_path, reference_pressure=None, cs_type="mech",
         def P(v, is_pos=True):
             return to_cs(v, cs_type, is_pos)
         print("=" * 64)
-        print("Pressure-center analysis (stator blade)")
+        print("Pressure-center analysis")
         print("输出坐标系: %s（位置[%s]，力[N]，力矩[N·m]）" % (cs_type, pos_unit))
         print("=" * 64)
         print("PS points: %d   SS points: %d" % (len(ps_pts), len(ss_pts)))
+        if single_surface:
+            print("面模式: 单面（仅 ps）")
+        if inside_point is not None:
+            print("外法向: 按 --inside-point 背离（%s）" % _fmt(P(inside_point)))
         print("Triangles used: %d   total area: %.6e m^2" % (n_tri, area))
         print("Body centroid [%s]: " % pos_unit + _fmt(P(body_centroid)))
         if reference_pressure is not None:
@@ -459,24 +494,33 @@ def run(ps_path, ss_path, reference_pressure=None, cs_type="mech",
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description="Compute resultant force & pressure center of a stator "
-                    "blade from ps/ss surface pressure point clouds.")
-    parser.add_argument("ps", help="pressure-side data file (x y z p)")
-    parser.add_argument("ss", help="suction-side data file (x y z p)")
+        description="Compute resultant force & pressure center of a "
+                    "pressure-loaded surface from point-cloud pressure data.")
+    parser.add_argument("ps", help="surface data file (x y z p); for a "
+                        "two-sided body this is one side (e.g. pressure side)")
+    parser.add_argument("ss", nargs="?", default=None,
+                        help="optional second (opposing) surface file, e.g. "
+                             "suction side. Omit for a single open surface or "
+                             "a closed body given as one cloud (then use "
+                             "--inside-point).")
     parser.add_argument("--pref", type=float, default=None,
                         help="换算到表压时减去的参考压 p_ref [Pa]。"
-                              "默认按绝对压力处理（不减）；若要表压基准"
-                              "（如闭合体近似、或与同事对齐参考压），"
-                              "用它减去参考压。")
-    parser.add_argument("--cstype", default="mech",
-                        choices=["aero", "mech"],
+                             "默认按绝对压力处理（不减）；若要表压基准"
+                             "（如闭合体近似、或与同事对齐参考压），"
+                             "用它减去参考压。")
+    parser.add_argument("--cstype", default="mech", choices=["aero", "mech"],
                         help="输出坐标系：aero(气动系,m) 或 mech(结构系,mm)。"
                              "默认 mech。仅影响显示，内部计算仍在气动系(m)进行。")
+    parser.add_argument("--inside-point", dest="inside_point", nargs=3,
+                        type=float, default=None, metavar=("X", "Y", "Z"),
+                        help="结构内部一点（非湿润侧），气动系坐标[m]。法向将"
+                             "背离该点——对单面/闭合体稳健。两文件双面结构"
+                             "（叶片/机翼上下）无需此参数。")
     args = parser.parse_args(argv)
     cs_type = args.cstype
     try:
         run(args.ps, args.ss, reference_pressure=args.pref,
-            cs_type=cs_type, verbose=True)
+            cs_type=cs_type, inside_point=args.inside_point, verbose=True)
     except (ValueError, FileNotFoundError, RuntimeError) as exc:
         sys.stderr.write("Error: %s\n" % exc)
         return 1

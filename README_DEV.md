@@ -30,14 +30,18 @@ python -m pip install -r requirements.txt
 
 :: 跑程序（默认按绝对压力处理；输出坐标系默认结构系 mech，位置 mm）
 python pressure_center.py srv_ps.dat srv_ss.dat
+:: 双面结构（叶片/机翼上下）直接两文件；单面或闭合体：省略 ss + --inside-point
+python pressure_center.py wing_skin.dat --inside-point 0.1 -0.05 0.15
 :: 指定输出坐标系：mech(结构系,mm,默认) 或 aero(气动系,m)
 python pressure_center.py srv_ps.dat srv_ss.dat --cstype aero
 :: 可选：换算到表压基准（减去参考压 p_ref；如闭合体近似、或与同事对齐参考压）：
 python pressure_center.py srv_ps.dat srv_ss.dat --pref 101325
 ```
 
-> `--cstype` 仅影响**显示**：内部计算始终在气动系(m)进行；mech 时把位置×1000→mm、
-> 力/力矩按 R 旋转（`aero=(mech_z,-mech_y,mech_x)/1000`），单位 N、N·m 不变。
+> `--cstype` 仅影响**显示**：内部计算始终在气动系(m)进行。**注意 mech 与 aero
+> 不只是单位不同（mm vs m），坐标轴也不同**：
+> `aero = R·mech`，`R=[[0,0,1],[0,-1,0],[1,0,0]]`（x↔z 互换、y 取反），位置再
+> /1000 (mm→m)；力/力矩只做旋转 R，单位 N、N·m 不变。
 
 > `python` 必须指向 3.8.10。若机器上装了多个 Python，用 `py -3.8` 或写全路径。
 >
